@@ -1,0 +1,36 @@
+CUSTOMERS = [
+    {"customer_id": "C001", "name": "Aisha Khan", "email": "aisha@example.com", "tier": "gold", "total_orders": 14, "risk_flag": False},
+    {"customer_id": "C002", "name": "Ben Miller", "email": "ben@example.com", "tier": "standard", "total_orders": 3, "risk_flag": False},
+    {"customer_id": "C003", "name": "Carla Ruiz", "email": "carla@example.com", "tier": "standard", "total_orders": 7, "risk_flag": True},
+    {"customer_id": "C004", "name": "David Chen", "email": "david@example.com", "tier": "platinum", "total_orders": 22, "risk_flag": False},
+    {"customer_id": "C005", "name": "Emma Wilson", "email": "emma@example.com", "tier": "standard", "total_orders": 2, "risk_flag": False},
+    {"customer_id": "C006", "name": "Farhan Ahmed", "email": "farhan@example.com", "tier": "gold", "total_orders": 11, "risk_flag": False},
+    {"customer_id": "C007", "name": "Grace Lee", "email": "grace@example.com", "tier": "standard", "total_orders": 5, "risk_flag": False},
+    {"customer_id": "C008", "name": "Hector Garcia", "email": "hector@example.com", "tier": "standard", "total_orders": 1, "risk_flag": False},
+    {"customer_id": "C009", "name": "Isabella Rossi", "email": "isabella@example.com", "tier": "platinum", "total_orders": 31, "risk_flag": False},
+    {"customer_id": "C010", "name": "James Brown", "email": "james@example.com", "tier": "standard", "total_orders": 4, "risk_flag": True},
+    {"customer_id": "C011", "name": "Kim Nguyen", "email": "kim@example.com", "tier": "gold", "total_orders": 16, "risk_flag": False},
+    {"customer_id": "C012", "name": "Lina Patel", "email": "lina@example.com", "tier": "standard", "total_orders": 6, "risk_flag": False},
+    {"customer_id": "C013", "name": "Marco Silva", "email": "marco@example.com", "tier": "standard", "total_orders": 8, "risk_flag": False},
+    {"customer_id": "C014", "name": "Nora Smith", "email": "nora@example.com", "tier": "gold", "total_orders": 19, "risk_flag": False},
+    {"customer_id": "C015", "name": "Omar Hassan", "email": "omar@example.com", "tier": "standard", "total_orders": 9, "risk_flag": False},
+]
+
+
+ORDERS = [
+    {"order_id": "O1001", "customer_id": "C001", "item": "Wireless Headphones", "amount": 89.99, "days_since_delivery": 12, "condition": "unopened", "category": "electronics"},
+    {"order_id": "O1002", "customer_id": "C002", "item": "Running Shoes", "amount": 129.99, "days_since_delivery": 20, "condition": "lightly_used", "category": "apparel"},
+    {"order_id": "O1003", "customer_id": "C003", "item": "Smart Watch", "amount": 249.99, "days_since_delivery": 45, "condition": "damaged_by_customer", "category": "electronics"},
+    {"order_id": "O1004", "customer_id": "C004", "item": "Coffee Maker", "amount": 149.99, "days_since_delivery": 8, "condition": "defective", "category": "home"},
+    {"order_id": "O1005", "customer_id": "C005", "item": "Final Sale Jacket", "amount": 79.99, "days_since_delivery": 10, "condition": "unopened", "category": "final_sale"},
+    {"order_id": "O1006", "customer_id": "C006", "item": "Bluetooth Speaker", "amount": 59.99, "days_since_delivery": 31, "condition": "unopened", "category": "electronics"},
+    {"order_id": "O1007", "customer_id": "C007", "item": "Yoga Pants", "amount": 49.99, "days_since_delivery": 14, "condition": "lightly_used", "category": "apparel"},
+    {"order_id": "O1008", "customer_id": "C008", "item": "Laptop Sleeve", "amount": 24.99, "days_since_delivery": 5, "condition": "opened", "category": "accessories"},
+    {"order_id": "O1009", "customer_id": "C009", "item": "Air Fryer", "amount": 119.99, "days_since_delivery": 18, "condition": "defective", "category": "home"},
+    {"order_id": "O1010", "customer_id": "C010", "item": "Tablet", "amount": 399.99, "days_since_delivery": 9, "condition": "unopened", "category": "electronics"},
+    {"order_id": "O1011", "customer_id": "C011", "item": "Winter Gloves", "amount": 34.99, "days_since_delivery": 25, "condition": "unopened", "category": "apparel"},
+    {"order_id": "O1012", "customer_id": "C012", "item": "Final Sale Sunglasses", "amount": 69.99, "days_since_delivery": 3, "condition": "unopened", "category": "final_sale"},
+    {"order_id": "O1013", "customer_id": "C013", "item": "Gaming Mouse", "amount": 39.99, "days_since_delivery": 33, "condition": "defective", "category": "electronics"},
+    {"order_id": "O1014", "customer_id": "C014", "item": "Desk Lamp", "amount": 44.99, "days_since_delivery": 11, "condition": "damaged_by_customer", "category": "home"},
+    {"order_id": "O1015", "customer_id": "C015", "item": "Backpack", "amount": 54.99, "days_since_delivery": 16, "condition": "unopened", "category": "accessories"},
+]
