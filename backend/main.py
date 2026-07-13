@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from schemas import ChatRequest, ChatResponse
-from agent import run_agent
+from graph_agent import run_graph_agent
 from data import CUSTOMERS, ORDERS
 from policy import REFUND_POLICY
 from demo_cases import DEMO_CASES
@@ -37,4 +37,4 @@ def demo_cases():
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
-    return run_agent(request.message)
+    return run_graph_agent(request.message)
