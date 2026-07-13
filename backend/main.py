@@ -2,11 +2,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from schemas import ChatRequest, ChatResponse
 from graph_agent import run_graph_agent
-from data import CUSTOMERS, ORDERS
+from repository import get_all_customers, get_all_orders
 from policy import REFUND_POLICY
 from demo_cases import DEMO_CASES
 
+from database import Base, engine
+import models
+
 app = FastAPI(title="AI Refund Agent API")
+Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,8 +29,8 @@ def health():
 @app.get("/mock-data")
 def mock_data():
     return {
-        "customers": CUSTOMERS,
-        "orders": ORDERS,
+        "customers": get_all_customers(),
+        "orders": get_all_orders(),
         "policy": REFUND_POLICY,
     }
 
