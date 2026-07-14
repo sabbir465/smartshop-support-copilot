@@ -26,10 +26,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
 
 
 @app.get("/mock-data")

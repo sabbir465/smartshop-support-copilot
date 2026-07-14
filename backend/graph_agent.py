@@ -20,6 +20,16 @@ from tools import (
     find_order as find_order_function,
     get_refund_policy as get_refund_policy_function,
 )
+import time
+from metrics import (
+    AGENT_EXECUTION_DURATION_SECONDS,
+    AGENT_TOOL_CALLS_TOTAL,
+    AGENT_TOOL_ERRORS_TOTAL,
+    LLM_CALLS_TOTAL,
+    LLM_ERRORS_TOTAL,
+    POLICY_ENFORCEMENTS_TOTAL,
+    REFUND_DECISIONS_TOTAL,
+)
 
 load_dotenv()
 
@@ -99,17 +109,24 @@ model = ChatOpenAI(
 model_with_tools = model.bind_tools(TOOLS)
 
 
+
 def agent_node(state: AgentState) -> dict:
     """
     Ask the LLM whether it should call another tool or provide a final answer.
     """
 
-    response = model_with_tools.invoke(
-        [
-            SystemMessage(content=SYSTEM_PROMPT),
-            *state["messages"],
-        ]
-    )
+    LLM_CALLS_TOTAL.inc()
+
+    try:
+        response = model_with_tools.invoke(
+            [
+                SystemMessage(content=SYSTEM_PROMPT),
+                *state["messages"],
+            ]
+        )
+    except Exception:
+        LLM_ERRORS_TOTAL.inc()
+        raise
 
     return {
         "messages": [response],
@@ -117,18 +134,24 @@ def agent_node(state: AgentState) -> dict:
     }
 
 
+
 def tool_node(state: AgentState) -> dict:
     """
     Execute every tool requested by the most recent AI message.
 
-    This is a custom tool node because we also want to capture
-    human-readable execution logs and formal decision state.
+    This custom tool node also captures:
+    - human-readable execution logs,
+    - current order ID,
+    - final refund decision,
+    - Prometheus tool metrics.
     """
 
     last_message = state["messages"][-1]
 
     if not isinstance(last_message, AIMessage):
-        raise ValueError("The tool node expected the latest message to be AIMessage.")
+        raise ValueError(
+            "The tool node expected the latest message to be AIMessage."
+        )
 
     logs = list(state["logs"])
     tool_messages: list[ToolMessage] = []
@@ -140,24 +163,32 @@ def tool_node(state: AgentState) -> dict:
         tool_name = tool_call["name"]
         tool_arguments = tool_call.get("args", {})
 
+        AGENT_TOOL_CALLS_TOTAL.labels(tool=tool_name).inc()
+
         selected_tool = TOOLS_BY_NAME.get(tool_name)
 
-        if selected_tool is None:
-            result = {"error": f"Unknown tool: {tool_name}"}
-        else:
-            logs.append(
-                {
-                    "step": f"Planning tool call: {tool_name}",
-                    "detail": (
-                        f"Agent selected `{tool_name}` with arguments: "
-                        f"{json.dumps(tool_arguments)}"
-                    ),
-                }
-            )
+        logs.append(
+            {
+                "step": f"Planning tool call: {tool_name}",
+                "detail": (
+                    f"Agent selected `{tool_name}` with arguments: "
+                    f"{json.dumps(tool_arguments)}"
+                ),
+            }
+        )
 
+        if selected_tool is None:
+            AGENT_TOOL_ERRORS_TOTAL.labels(tool=tool_name).inc()
+
+            result = {
+                "error": f"Unknown tool: {tool_name}",
+            }
+        else:
             try:
                 result = selected_tool.invoke(tool_arguments)
             except Exception as exc:
+                AGENT_TOOL_ERRORS_TOTAL.labels(tool=tool_name).inc()
+
                 result = {
                     "error": "Tool execution failed",
                     "detail": str(exc),
@@ -172,9 +203,9 @@ def tool_node(state: AgentState) -> dict:
 
         if tool_name == "get_refund_policy":
             display_result = (
-                "Refund policy loaded successfully. The agent will validate "
-                "the refund window, item category, item condition, customer "
-                "risk status, and customer tier."
+                "Refund policy loaded successfully. "
+                "The agent will validate the refund window, item category, "
+                "item condition, customer risk status, and customer tier."
             )
         else:
             display_result = json.dumps(result, indent=2)
@@ -202,6 +233,8 @@ def tool_node(state: AgentState) -> dict:
     }
 
 
+
+
 def enforce_policy_node(state: AgentState) -> dict:
     """
     Run deterministic policy evaluation when the LLM attempts to finish
@@ -213,6 +246,8 @@ def enforce_policy_node(state: AgentState) -> dict:
     if not order_id:
         return {}
 
+    POLICY_ENFORCEMENTS_TOTAL.inc()
+
     evaluation_result = evaluate_refund_function(order_id)
 
     logs = [
@@ -220,8 +255,9 @@ def enforce_policy_node(state: AgentState) -> dict:
         {
             "step": "Required policy evaluation",
             "detail": (
-                "The model attempted to finish before formal policy evaluation. "
-                f"The backend enforced deterministic validation for order {order_id}."
+                "The model attempted to finish before formal policy "
+                "evaluation. The backend enforced deterministic validation "
+                f"for order {order_id}."
             ),
         },
         {
@@ -232,10 +268,11 @@ def enforce_policy_node(state: AgentState) -> dict:
 
     policy_message = HumanMessage(
         content=(
-            "A required deterministic policy evaluation was completed by the "
-            f"backend. Result: {json.dumps(evaluation_result)}. "
-            "Write the final customer-facing response and follow this decision "
-            "exactly. Do not request an exception and do not call more tools."
+            "A required deterministic policy evaluation was completed by "
+            f"the backend. Result: {json.dumps(evaluation_result)}. "
+            "Write the final customer-facing response and follow this "
+            "decision exactly. Do not request an exception and do not "
+            "call more tools."
         )
     )
 
@@ -244,6 +281,7 @@ def enforce_policy_node(state: AgentState) -> dict:
         "logs": logs,
         "final_decision": evaluation_result.get("decision"),
     }
+
 
 
 def route_after_agent(
@@ -296,10 +334,17 @@ def build_graph():
 refund_graph = build_graph()
 
 
+
 def run_graph_agent(user_message: str) -> dict:
     """
     Invoke the LangGraph agent while preserving the existing /chat response.
+
+    Prometheus metrics capture:
+    - total agent execution duration,
+    - final refund decision.
     """
+
+    start_time = time.perf_counter()
 
     initial_state: AgentState = {
         "messages": [HumanMessage(content=user_message)],
@@ -309,10 +354,15 @@ def run_graph_agent(user_message: str) -> dict:
         "iterations": 0,
     }
 
-    result = refund_graph.invoke(
-        initial_state,
-        config={"recursion_limit": 15},
-    )
+    try:
+        result = refund_graph.invoke(
+            initial_state,
+            config={"recursion_limit": 15},
+        )
+    finally:
+        AGENT_EXECUTION_DURATION_SECONDS.observe(
+            time.perf_counter() - start_time
+        )
 
     final_answer = (
         "I’m sorry, but I could not complete the refund review. "
@@ -324,8 +374,15 @@ def run_graph_agent(user_message: str) -> dict:
             final_answer = str(message.content)
             break
 
+    final_decision = result.get("final_decision")
+
+    if final_decision:
+        REFUND_DECISIONS_TOTAL.labels(
+            decision=final_decision
+        ).inc()
+
     return {
         "answer": final_answer,
-        "decision": result.get("final_decision"),
+        "decision": final_decision,
         "logs": result.get("logs", []),
     }
