@@ -9,7 +9,13 @@ from demo_cases import DEMO_CASES
 from database import Base, engine
 import models
 
+from logging_config import configure_logging
+from middleware import RequestLoggingMiddleware
+
+configure_logging()
+
 app = FastAPI(title="AI Refund Agent API")
+app.add_middleware(RequestLoggingMiddleware)
 Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
