@@ -1,4 +1,9 @@
-import type { FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  type FormEvent,
+} from "react";
+
 import type { ChatMessage } from "../types/models";
 
 interface ChatPanelProps {
@@ -26,6 +31,14 @@ function ChatPanel({
   onStartListening,
   onStopListening,
 }: ChatPanelProps) {
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages, isLoading, isListening]);
+  
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onSend();
@@ -89,6 +102,7 @@ function ChatPanel({
           );
         })}
 
+        
         {isLoading && (
           <div className="flex justify-start">
             <div className="rounded-2xl rounded-bl-md bg-slate-100 px-5 py-4">
@@ -96,12 +110,22 @@ function ChatPanel({
                 SmartShop AI
               </p>
 
-              <p className="mt-1 text-sm text-slate-600">
-                Reviewing customer, order, and policy information...
-              </p>
+              <div className="mt-2 flex items-center gap-3">
+                <div className="flex gap-1">
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:-0.3s]" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:-0.15s]" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500" />
+                </div>
+
+                <p className="text-sm text-slate-600">
+                  Reviewing customer, order, and policy information...
+                </p>
+              </div>
             </div>
           </div>
         )}
+
+
 
         {isListening && (
           <div className="flex justify-center">
@@ -111,6 +135,7 @@ function ChatPanel({
             </div>
           </div>
         )}
+      <div ref={messagesEndRef} />
       </div>
 
       <form

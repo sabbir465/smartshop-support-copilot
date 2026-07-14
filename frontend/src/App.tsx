@@ -199,7 +199,10 @@ function App() {
         </div>
 
         <div className="mt-6">
-          <DecisionCard decision={decision} />
+          <DecisionCard
+            decision={decision}
+            isLoading={isLoading}
+          />
         </div>
       </main>
     </div>
