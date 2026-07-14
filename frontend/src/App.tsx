@@ -1,4 +1,3 @@
-import { useState } from "react";
 import axios from "axios";
 
 import ChatPanel from "./components/ChatPanel";
@@ -12,6 +11,11 @@ import type {
   Decision,
   ReasoningLog,
 } from "./types/models";
+
+import { useCallback, useRef, useState } from "react";
+
+import { useSpeechRecognition } from "./hooks/useSpeechRecognition";
+import { speakText } from "./services/speech";
 
 const initialMessages: ChatMessage[] = [
   {
@@ -34,6 +38,30 @@ function App() {
   const [input, setInput] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
+
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const voiceRequestRef = useRef(false);
+
+  const handleVoiceTranscript = useCallback((transcript: string) => {
+    setInput(transcript);
+    setVoiceError(null);
+    voiceRequestRef.current = true;
+  }, []);
+
+  const handleVoiceError = useCallback((message: string) => {
+    setVoiceError(message);
+    voiceRequestRef.current = false;
+  }, []);
+
+  const {
+    isSupported: isSpeechSupported,
+    isListening,
+    startListening,
+    stopListening,
+  } = useSpeechRecognition({
+    onTranscript: handleVoiceTranscript,
+    onError: handleVoiceError,
+  });
 
   async function handleSend() {
     const trimmedInput = input.trim();
@@ -69,6 +97,10 @@ function App() {
 
     try {
       const response = await sendChatMessage(trimmedInput);
+      
+      if (voiceRequestRef.current) {
+        speakText(response.answer);
+      }
 
       const assistantMessage: ChatMessage = {
         id: Date.now() + 1,
@@ -123,6 +155,7 @@ function App() {
 
       setDecision(null);
     } finally {
+      voiceRequestRef.current = false;
       setIsLoading(false);
     }
   }
@@ -153,8 +186,13 @@ function App() {
             messages={messages}
             input={input}
             isLoading={isLoading}
+            isListening={isListening}
+            isSpeechSupported={isSpeechSupported}
+            voiceError={voiceError}
             onInputChange={setInput}
             onSend={handleSend}
+            onStartListening={startListening}
+            onStopListening={stopListening}
           />
 
           <ReasoningPanel logs={logs} />

@@ -47,6 +47,8 @@ Rules:
 5. If the policy denies a request, politely hold the line.
 6. Customer tier cannot override strict policy restrictions.
 7. Produce a concise and empathetic customer-facing response.
+8. If a customer or order lookup returns an error, do not infer or invent any missing information.
+9. Never describe an item, category, amount, condition, or policy outcome unless it was returned by a tool.
 """
 
 
@@ -59,6 +61,7 @@ class AgentState(TypedDict):
     logs: list[dict[str, str]]
     current_order_id: str | None
     final_decision: str | None
+    lookup_error: str | None
     iterations: int
 
 
@@ -134,15 +137,15 @@ def agent_node(state: AgentState) -> dict:
     }
 
 
-
 def tool_node(state: AgentState) -> dict:
     """
     Execute every tool requested by the most recent AI message.
 
-    This custom tool node also captures:
-    - human-readable execution logs,
+    This custom tool node captures:
+    - execution logs,
     - current order ID,
     - final refund decision,
+    - lookup failures,
     - Prometheus tool metrics.
     """
 
@@ -158,6 +161,7 @@ def tool_node(state: AgentState) -> dict:
 
     current_order_id = state["current_order_id"]
     final_decision = state["final_decision"]
+    lookup_error = state["lookup_error"]
 
     for tool_call in last_message.tool_calls:
         tool_name = tool_call["name"]
@@ -194,8 +198,24 @@ def tool_node(state: AgentState) -> dict:
                     "detail": str(exc),
                 }
 
+        if tool_name == "find_customer_by_email" and isinstance(result, dict):
+            if "error" in result:
+                requested_email = tool_arguments.get("email", "provided email")
+                lookup_error = (
+                    f"No customer profile was found for {requested_email}."
+                )
+
         if tool_name == "find_order" and isinstance(result, dict):
-            if "error" not in result:
+            if "error" in result:
+                requested_order_id = tool_arguments.get(
+                    "order_id",
+                    "the provided order ID",
+                )
+
+                lookup_error = (
+                    f"Order {requested_order_id} was not found in the CRM."
+                )
+            else:
                 current_order_id = result.get("order_id")
 
         if tool_name == "evaluate_refund" and isinstance(result, dict):
@@ -230,8 +250,45 @@ def tool_node(state: AgentState) -> dict:
         "logs": logs,
         "current_order_id": current_order_id,
         "final_decision": final_decision,
+        "lookup_error": lookup_error,
     }
 
+
+
+def lookup_failure_node(state: AgentState) -> dict:
+    """
+    Produce a deterministic response when a required CRM record
+    cannot be found.
+
+    This prevents the LLM from inventing customer, order, or policy details.
+    """
+
+    lookup_error = (
+        state["lookup_error"]
+        or "The requested customer or order record could not be verified."
+    )
+
+    logs = [
+        *state["logs"],
+        {
+            "step": "Request validation failed",
+            "detail": lookup_error,
+        },
+    ]
+
+    response = AIMessage(
+        content=(
+            f"{lookup_error} Please verify the email address and order ID "
+            "and submit the request again. I cannot approve or evaluate a "
+            "refund without a valid CRM record."
+        )
+    )
+
+    return {
+        "messages": [response],
+        "logs": logs,
+        "final_decision": "deny",
+    }
 
 
 
@@ -302,6 +359,20 @@ def route_after_agent(
     return END
 
 
+
+def route_after_tools(
+    state: AgentState,
+) -> Literal["agent", "lookup_failure"]:
+    """
+    Stop normal agent execution when a required CRM lookup fails.
+    """
+
+    if state["lookup_error"]:
+        return "lookup_failure"
+
+    return "agent"
+
+
 def build_graph():
     """
     Construct and compile the LangGraph workflow.
@@ -311,6 +382,7 @@ def build_graph():
 
     workflow.add_node("agent", agent_node)
     workflow.add_node("tools", tool_node)
+    workflow.add_node("lookup_failure", lookup_failure_node)
     workflow.add_node("enforce_policy", enforce_policy_node)
 
     workflow.add_edge(START, "agent")
@@ -325,10 +397,20 @@ def build_graph():
         },
     )
 
-    workflow.add_edge("tools", "agent")
+    workflow.add_conditional_edges(
+        "tools",
+        route_after_tools,
+        {
+            "agent": "agent",
+            "lookup_failure": "lookup_failure",
+        },
+    )
+
+    workflow.add_edge("lookup_failure", END)
     workflow.add_edge("enforce_policy", "agent")
 
     return workflow.compile()
+
 
 
 refund_graph = build_graph()
@@ -351,6 +433,7 @@ def run_graph_agent(user_message: str) -> dict:
         "logs": [],
         "current_order_id": None,
         "final_decision": None,
+        "lookup_error": None,
         "iterations": 0,
     }
 
